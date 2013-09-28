@@ -19,7 +19,7 @@ import qualified Data.ByteString.Lazy as BL
 printer :: (Show a, MonadIO m) => Sink a m ()
 printer = CL.mapM_ (liftIO . print)
 
-getSignature time headers = 
+getSignature time headers body = 
     Sign4 {
         s4Credentials = creds,
         s4Date = time,
@@ -29,7 +29,7 @@ getSignature time headers =
         s4Path = "/",
         s4Headers = headers,
         s4Query = [],
-        s4Body = "{}",
+        s4Body = body,
         s4SgndHeaders = Nothing,
         s4CnclHeaders = Nothing
     }
@@ -39,29 +39,32 @@ getSignature time headers =
                     secretAccessKey = "1qUugHASKcvFsZ37CP8LK5HIvLbQBcW/oPxP1w1F" 
                 }
 
-listTablesBody = 
-    RequestBodyLBS (BL.fromChunks $ [B.pack "{}"])
-
-main :: IO ()
-main = do
+dynamoReq operation sink body = do
     time <- getCurrentTime
+    let target = "DynamoDB_20120810." ++ operation
     let headers = [ 
                     ("Content-Encoding", "amz-1.0") ,
-                    ("X-Amz-Target", "DynamoDB_20120810.ListTables"),
+                    ("X-Amz-Target", B.pack target),
                     ("X-Amz-Date", "20130928T135345Z"),
                     ("User-Agent","aws-cli/1.1.0 Python/2.7.3 Linux/3.8.0-29-generic")
-                  ]
-    let sig = getSignature time headers
+                ]
+    let sig = getSignature time headers body
     let authHeader = s4Authz sig
     let withAuthHeader = ("Authorization", authHeader) : headers
     request <- parseUrl "http://localhost:8000/"
-    let proxy = Just Proxy { proxyHost = "localhost", proxyPort = 8888 }
+    let proxy = Nothing -- Just Proxy { proxyHost = "localhost", proxyPort = 8888 }
     let anotherReq = request { 
                         requestHeaders = withAuthHeader,
-                        requestBody = listTablesBody,
+                        requestBody = RequestBodyBS body,
                         method = "POST",
                         proxy = proxy
     }
+
     withManager $ \manager -> do
         response <- http anotherReq manager
-        responseBody response C.$$+- printer
+        responseBody response C.$$+- sink
+    
+main :: IO ()
+main = do
+    dynamoReq "CreateTable" printer "{ \"AttributeDefinitions\": [ { \"AttributeName\": \"ForumName\", \"AttributeType\": \"S\" }, { \"AttributeName\": \"Subject\", \"AttributeType\": \"S\" }, { \"AttributeName\": \"LastPostDateTime\", \"AttributeType\": \"S\" } ], \"TableName\": \"Thread\", \"KeySchema\": [ { \"AttributeName\": \"ForumName\", \"KeyType\": \"HASH\" }, { \"AttributeName\": \"Subject\", \"KeyType\": \"RANGE\" } ], \"LocalSecondaryIndexes\": [ { \"IndexName\": \"LastPostIndex\", \"KeySchema\": [ { \"AttributeName\": \"ForumName\", \"KeyType\": \"HASH\" }, { \"AttributeName\": \"LastPostDateTime\", \"KeyType\": \"RANGE\" } ], \"Projection\": { \"ProjectionType\": \"KEYS_ONLY\" } } ], \"ProvisionedThroughput\": { \"ReadCapacityUnits\": 5, \"WriteCapacityUnits\": 5 } }"
+    dynamoReq "ListTables" printer "{}"
