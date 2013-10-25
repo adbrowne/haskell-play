@@ -1,9 +1,12 @@
-{-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings, DeriveGeneric, TemplateHaskell #-}
 import Data.Conduit.Binary (sinkFile)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 
+import AesonConfig
+
 import Data.Aeson
+import Data.Aeson.TH
 import Data.Text
 import GHC.Generics
 
@@ -51,8 +54,7 @@ data AttributeDef =
     }
         deriving (Show, Generic)
 
-instance ToJSON AttributeDef where
-    toJSON AttributeDef { attributeName = attributeName, attributeType = attributeType } = object ["AttributeName" .= attributeName, "AttributeType" .= attributeType ]
+$(deriveJSON dynamoAesonOptions ''AttributeDef)
 
 data CreateReq =
     CreateReq { 
@@ -61,8 +63,7 @@ data CreateReq =
     }
         deriving (Show, Generic)
 
-instance ToJSON CreateReq where
-    toJSON CreateReq { name = name, attributeDefinitions = attributeDefinitions } = object ["Name" .= name, "AttributeDefinitions" .= attributeDefinitions]
+$(deriveJSON dynamoAesonOptions ''CreateReq)
 
 dynamoReq operation sink body = do
     time <- getCurrentTime
@@ -98,6 +99,11 @@ main = do
                     attributeDefinitions = [ AttributeDef { attributeName = "ForumName", attributeType = "S" } ]
                 }
     let myString = encode myObj
+    putStrLn ""
+    putStrLn "My Version"
     BCL.putStrLn myString 
+
+    putStrLn ""
     dynamoReq "CreateTable" printer createTableString 
+    putStrLn ""
     dynamoReq "ListTables" printer "{}"
