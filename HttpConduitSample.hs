@@ -1,7 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
 import Data.Conduit.Binary (sinkFile)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
+
+import Data.Aeson
+import Data.Text
+import GHC.Generics
 
 import System.IO
 import Control.Monad.IO.Class (liftIO, MonadIO)
@@ -14,6 +18,7 @@ import qualified Data.Conduit as C
 
 import Data.Time.Clock
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy.Char8 as BCL
 import qualified Data.ByteString.Lazy as BL
 
 printer :: (Show a, MonadIO m) => Sink a m ()
@@ -38,6 +43,26 @@ getSignature time headers body =
                     accessKeyID = "AKIAJXELXSQICXRN3VBQ", 
                     secretAccessKey = "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" 
                 }
+
+data AttributeDef =
+    AttributeDef { 
+        attributeName :: !Text, 
+        attributeType :: !Text 
+    }
+        deriving (Show, Generic)
+
+instance ToJSON AttributeDef where
+    toJSON AttributeDef { attributeName = attributeName, attributeType = attributeType } = object ["AttributeName" .= attributeName, "AttributeType" .= attributeType ]
+
+data CreateReq =
+    CreateReq { 
+        name :: !Text ,
+        attributeDefinitions :: [AttributeDef]
+    }
+        deriving (Show, Generic)
+
+instance ToJSON CreateReq where
+    toJSON CreateReq { name = name, attributeDefinitions = attributeDefinitions } = object ["Name" .= name, "AttributeDefinitions" .= attributeDefinitions]
 
 dynamoReq operation sink body = do
     time <- getCurrentTime
@@ -66,5 +91,13 @@ dynamoReq operation sink body = do
     
 main :: IO ()
 main = do
-    dynamoReq "CreateTable" printer "{ \"AttributeDefinitions\": [ { \"AttributeName\": \"ForumName\", \"AttributeType\": \"S\" }, { \"AttributeName\": \"Subject\", \"AttributeType\": \"S\" }, { \"AttributeName\": \"LastPostDateTime\", \"AttributeType\": \"S\" } ], \"TableName\": \"Thread\", \"KeySchema\": [ { \"AttributeName\": \"ForumName\", \"KeyType\": \"HASH\" }, { \"AttributeName\": \"Subject\", \"KeyType\": \"RANGE\" } ], \"LocalSecondaryIndexes\": [ { \"IndexName\": \"LastPostIndex\", \"KeySchema\": [ { \"AttributeName\": \"ForumName\", \"KeyType\": \"HASH\" }, { \"AttributeName\": \"LastPostDateTime\", \"KeyType\": \"RANGE\" } ], \"Projection\": { \"ProjectionType\": \"KEYS_ONLY\" } } ], \"ProvisionedThroughput\": { \"ReadCapacityUnits\": 5, \"WriteCapacityUnits\": 5 } }"
+    let createTableString = "{ \"AttributeDefinitions\": [ { \"AttributeName\": \"ForumName\", \"AttributeType\": \"S\" }, { \"AttributeName\": \"Subject\", \"AttributeType\": \"S\" }, { \"AttributeName\": \"LastPostDateTime\", \"AttributeType\": \"S\" } ], \"TableName\": \"Thread2\", \"KeySchema\": [ { \"AttributeName\": \"ForumName\", \"KeyType\": \"HASH\" }, { \"AttributeName\": \"Subject\", \"KeyType\": \"RANGE\" } ], \"LocalSecondaryIndexes\": [ { \"IndexName\": \"LastPostIndex\", \"KeySchema\": [ { \"AttributeName\": \"ForumName\", \"KeyType\": \"HASH\" }, { \"AttributeName\": \"LastPostDateTime\", \"KeyType\": \"RANGE\" } ], \"Projection\": { \"ProjectionType\": \"KEYS_ONLY\" } } ], \"ProvisionedThroughput\": { \"ReadCapacityUnits\": 5, \"WriteCapacityUnits\": 5 } }"
+    putStrLn $ show createTableString 
+    let myObj = CreateReq { 
+                    name = "Andrew",
+                    attributeDefinitions = [ AttributeDef { attributeName = "ForumName", attributeType = "S" } ]
+                }
+    let myString = encode myObj
+    BCL.putStrLn myString 
+    dynamoReq "CreateTable" printer createTableString 
     dynamoReq "ListTables" printer "{}"
