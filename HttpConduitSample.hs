@@ -49,19 +49,28 @@ getSignature time headers body =
 
 data AttributeDef =
     AttributeDef { 
-        attributeName :: !Text, 
-        attributeType :: !Text 
+        attributeType :: !Text,
+        attributeName :: !Text 
     }
-        deriving (Show, Generic)
+        deriving (Show)
 
 $(deriveJSON dynamoAesonOptions ''AttributeDef)
 
+data ProvisionedThroughput =
+    ProvisionedThroughput {
+        readCapacityUnits :: Int,
+        writeCapacityUnits :: Int
+    }
+    deriving (Show)
+
+$(deriveJSON dynamoAesonOptions ''ProvisionedThroughput)
+
 data CreateReq =
     CreateReq { 
-        name :: !Text ,
-        attributeDefinitions :: [AttributeDef]
+        attributeDefinitions :: [AttributeDef],
+        provisionedThroughput :: ProvisionedThroughput
     }
-        deriving (Show, Generic)
+        deriving (Show)
 
 $(deriveJSON dynamoAesonOptions ''CreateReq)
 
@@ -95,8 +104,15 @@ main = do
     let createTableString = "{ \"AttributeDefinitions\": [ { \"AttributeName\": \"ForumName\", \"AttributeType\": \"S\" }, { \"AttributeName\": \"Subject\", \"AttributeType\": \"S\" }, { \"AttributeName\": \"LastPostDateTime\", \"AttributeType\": \"S\" } ], \"TableName\": \"Thread2\", \"KeySchema\": [ { \"AttributeName\": \"ForumName\", \"KeyType\": \"HASH\" }, { \"AttributeName\": \"Subject\", \"KeyType\": \"RANGE\" } ], \"LocalSecondaryIndexes\": [ { \"IndexName\": \"LastPostIndex\", \"KeySchema\": [ { \"AttributeName\": \"ForumName\", \"KeyType\": \"HASH\" }, { \"AttributeName\": \"LastPostDateTime\", \"KeyType\": \"RANGE\" } ], \"Projection\": { \"ProjectionType\": \"KEYS_ONLY\" } } ], \"ProvisionedThroughput\": { \"ReadCapacityUnits\": 5, \"WriteCapacityUnits\": 5 } }"
     putStrLn $ show createTableString 
     let myObj = CreateReq { 
-                    name = "Andrew",
-                    attributeDefinitions = [ AttributeDef { attributeName = "ForumName", attributeType = "S" } ]
+                    attributeDefinitions = [ 
+                        AttributeDef { attributeName = "ForumName", attributeType = "S" },
+                        AttributeDef { attributeName = "Subject", attributeType = "S" },
+                        AttributeDef { attributeName = "LastPostDateTime", attributeType = "S" } 
+                    ],
+                    provisionedThroughput = ProvisionedThroughput { 
+                        readCapacityUnits = 5, 
+                        writeCapacityUnits = 5
+                    }
                 }
     let myString = encode myObj
     putStrLn ""
